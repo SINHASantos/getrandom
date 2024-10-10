@@ -105,8 +105,10 @@
 //! signature:
 //!
 //! ```
+//! use getrandom::Error;
+//!
 //! #[no_mangle]
-//! unsafe fn __getrandom_custom(dest: *mut u8, len: usize) -> u32 {
+//! unsafe extern "Rust" fn __getrandom_custom(dest: *mut u8, len: usize) -> Result<(), Error> {
 //!     todo!()
 //! }
 //! ```
@@ -126,9 +128,11 @@
 //! it gets pulled nevertheless by one of your dependencies, then you can
 //! use the following custom backend which always returns "unsupported" error:
 //! ```
+//! use getrandom::Error;
+//!
 //! #[no_mangle]
-//! unsafe fn __getrandom_custom(dest: *mut u8, len: usize) -> u32 {
-//!     getrandom::Error::UNSUPPORTED.code().get()
+//! unsafe extern "Rust" fn __getrandom_custom(dest: *mut u8, len: usize) -> Result<(), Error> {
+//!     Err(Error::UNSUPPORTED)
 //! }
 //! ```
 //!
@@ -237,6 +241,21 @@
 #![no_std]
 #![warn(rust_2018_idioms, unused_lifetimes, missing_docs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![deny(
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_ptr_alignment,
+    clippy::cast_sign_loss,
+    clippy::char_lit_as_u8,
+    clippy::checked_conversions,
+    clippy::fn_to_numeric_cast,
+    clippy::fn_to_numeric_cast_with_truncation,
+    clippy::ptr_as_ptr,
+    clippy::unnecessary_cast,
+    clippy::useless_conversion
+)]
 
 #[macro_use]
 extern crate cfg_if;
@@ -244,7 +263,6 @@ extern crate cfg_if;
 use core::mem::MaybeUninit;
 
 mod error;
-mod lazy;
 mod util;
 
 #[cfg(feature = "std")]
@@ -271,6 +289,8 @@ cfg_if! {
     } else if #[cfg(getrandom_backend = "rdrand")] {
         #[cfg(not(any(target_arch = "x86_64", target_arch = "x86")))]
         compile_error!("`rdrand` backend can be enabled only for x86 and x86-64 targets!");
+
+        mod lazy;
         #[path = "rdrand.rs"] mod imp;
     } else if #[cfg(getrandom_backend = "wasm_js")] {
         #[cfg(not(all(
@@ -347,6 +367,7 @@ cfg_if! {
             ),
         )
     ))] {
+        mod lazy;
         mod util_libc;
         mod use_file;
         mod linux_android;
@@ -383,6 +404,7 @@ cfg_if! {
     } else if #[cfg(windows)] {
         #[path = "windows.rs"] mod imp;
     } else if #[cfg(all(target_arch = "x86_64", target_env = "sgx"))] {
+        mod lazy;
         #[path = "rdrand.rs"] mod imp;
     } else if #[cfg(all(
         any(target_arch = "wasm32", target_arch = "wasm64"),
