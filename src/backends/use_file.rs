@@ -1,13 +1,16 @@
 //! Implementations that just need to read from a file
-use crate::{
-    util_libc::{open_readonly, sys_fill_exact},
-    Error,
-};
+use crate::Error;
 use core::{
     ffi::c_void,
     mem::MaybeUninit,
     sync::atomic::{AtomicI32, Ordering},
 };
+
+#[cfg(not(any(target_os = "android", target_os = "linux")))]
+pub use crate::util::{inner_u32, inner_u64};
+
+#[path = "../util_libc.rs"]
+pub(super) mod util_libc;
 
 /// For all platforms, we use `/dev/urandom` rather than `/dev/random`.
 /// For more information see the linked man pages in lib.rs.
@@ -37,14 +40,40 @@ const FD_ONGOING_INIT: libc::c_int = -2;
 // `Ordering::Acquire` to synchronize with it.
 static FD: AtomicI32 = AtomicI32::new(FD_UNINIT);
 
-pub fn getrandom_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
+pub fn fill_inner(dest: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
     let mut fd = FD.load(Ordering::Acquire);
     if fd == FD_UNINIT || fd == FD_ONGOING_INIT {
         fd = open_or_wait()?;
     }
-    sys_fill_exact(dest, |buf| unsafe {
+    util_libc::sys_fill_exact(dest, |buf| unsafe {
         libc::read(fd, buf.as_mut_ptr().cast::<c_void>(), buf.len())
     })
+}
+
+/// Open a file in read-only mode.
+///
+/// # Panics
+/// If `path` does not contain any zeros.
+// TODO: Move `path` to `CStr` and use `CStr::from_bytes_until_nul` (MSRV 1.69)
+// or C-string literals (MSRV 1.77) for statics
+fn open_readonly(path: &[u8]) -> Result<libc::c_int, Error> {
+    assert!(path.iter().any(|&b| b == 0));
+    loop {
+        let fd = unsafe {
+            libc::open(
+                path.as_ptr().cast::<libc::c_char>(),
+                libc::O_RDONLY | libc::O_CLOEXEC,
+            )
+        };
+        if fd >= 0 {
+            return Ok(fd);
+        }
+        let err = util_libc::last_os_error();
+        // We should try again if open() was interrupted.
+        if err.raw_os_error() != Some(libc::EINTR) {
+            return Err(err);
+        }
+    }
 }
 
 #[cold]
@@ -116,8 +145,7 @@ mod sync {
 
 #[cfg(any(target_os = "android", target_os = "linux"))]
 mod sync {
-    use super::{Error, FD, FD_ONGOING_INIT};
-    use crate::util_libc::{last_os_error, open_readonly};
+    use super::{open_readonly, util_libc::last_os_error, Error, FD, FD_ONGOING_INIT};
 
     /// Wait for atomic `FD` to change value from `FD_ONGOING_INIT` to something else.
     ///
@@ -191,8 +219,10 @@ mod sync {
                 break Ok(());
             }
             let err = last_os_error();
+            // Assuming that `poll` is called correctly,
+            // on Linux it can return only EINTR and ENOMEM errors.
             match err.raw_os_error() {
-                Some(libc::EINTR) | Some(libc::EAGAIN) => continue,
+                Some(libc::EINTR) => continue,
                 _ => break Err(err),
             }
         };

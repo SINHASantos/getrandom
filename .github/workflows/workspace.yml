@@ -12,7 +12,7 @@ permissions:
 jobs:
   clippy:
     name: Clippy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       RUSTFLAGS: "-Dwarnings"
     steps:
@@ -23,7 +23,7 @@ jobs:
         # Fixed Nigthly version is used to prevent
         # CI failures which are not relevant to PR changes
         # on introduction of new Clippy lints.
-        toolchain: nightly-2024-09-04
+        toolchain: nightly-2024-10-08
         components: clippy,rust-src
     - name: std feature
       run: cargo clippy --features std
@@ -45,9 +45,13 @@ jobs:
       run: cargo clippy -Zbuild-std=core --target x86_64-unknown-freebsd
     - name: Hermit (hermit.rs)
       run: cargo clippy -Zbuild-std=core --target x86_64-unknown-hermit
-    - name: Web WASM (js.rs)
+    - name: Web WASM (wasm_js.rs)
       env:
         RUSTFLAGS: -Dwarnings --cfg getrandom_backend="wasm_js"
+      run: cargo clippy -Zbuild-std --target wasm32-unknown-unknown
+    - name: Web WASM with atomics (wasm_js.rs)
+      env:
+        RUSTFLAGS: -Dwarnings --cfg getrandom_backend="wasm_js" -Ctarget-feature=+atomics,+bulk-memory
       run: cargo clippy -Zbuild-std --target wasm32-unknown-unknown
     - name: Linux (linux_android.rs)
       env:
@@ -59,6 +63,10 @@ jobs:
       run: cargo clippy -Zbuild-std=core --target x86_64-unknown-netbsd
     - name: Fortranix SGX (rdrand.rs)
       run: cargo clippy -Zbuild-std=core --target x86_64-fortanix-unknown-sgx
+    - name: RNDR (rndr.rs)
+      env:
+        RUSTFLAGS: -Dwarnings --cfg getrandom_backend="rndr"
+      run: cargo clippy -Zbuild-std=core --target aarch64-unknown-linux-gnu
     - name: Solaris (solaris.rs)
       run: cargo clippy -Zbuild-std=core --target x86_64-pc-solaris
     - name: SOLID (solid.rs)
@@ -78,7 +86,7 @@ jobs:
 
   fmt:
     name: rustfmt
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -90,7 +98,7 @@ jobs:
 
   check-doc:
     name: rustdoc
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master

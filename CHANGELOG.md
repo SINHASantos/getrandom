@@ -7,19 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Breaking Changes
-- Update MSRV to 1.60 [#472]
-- Remove support of the `wasm32-wasi` target (use `wasm32-wasip1` or `wasm32-wasip2` instead) [#499]
+
+#### Changed
+- Bump MSRV to 1.63 [#542]
+- Rename `getrandom` and `getrandom_uninit` functions to `fill` and `fill_uninit` respectively [#532]
+
+#### Removed
+- `wasm32-wasi` target support (use `wasm32-wasip1` or `wasm32-wasip2` instead) [#499]
+- `linux_disable_fallback`, `rdrand`, `js`, `test-in-browser`, and `custom` crate features
+  in favor of configuration flags [#504]
+- `register_custom_getrandom!` macro [#504]
+- Implementation of `From<NonZeroU32>` for `Error` and `Error::code` method [#507]
+- Internet Explorer 11 support [#554]
 
 ### Changed
-- Switch to `futex` on Linux and to `nanosleep`-based wait loop on other targets
-  in the `use_file` backend [#490]
-
+- Use `ProcessPrng` on Windows 10 and up, and use RtlGenRandom on older legacy Windows versions [#415]
+- Do not use locale-specific `strerror_r` for retrieving error code descriptions [#440]
+- Avoid assuming usize is the native word size in the `rdrand` backend [#442]
+- Do not read from `errno` when `libc` did not indicate error on Solaris [#448]
+- Switch from `libpthread`'s mutex to `futex` on Linux and to `nanosleep`-based wait loop
+  on other targets in the `use_file` backend [#490]
+- Do not retry on `EAGAIN` while polling `/dev/random` on Linux [#522]
+- Remove separate codepath for Node.js in the `wasm_js` backend (bumps minimum supported Node.js
+  version to v19) [#557]
+ 
 ### Added
 - `wasm32-wasip1` and `wasm32-wasip2` support [#499]
+- `getrandom_backend` configuration flag for selection of opt-in backends [#504]
+- `Error::new_custom` method [#507]
+- `rndr` opt-in backend [#512]
+- Automatic MemorySanitizer support [#521] [#571]
+- `u32` and `u64` functions for generating random values of the respective type [#544]
 
-[#472]: https://github.com/rust-random/getrandom/pull/472
+### Fixed
+- NetBSD fallback code based on `KERN_ARND` [#555]
+
+[#415]: https://github.com/rust-random/getrandom/pull/415
+[#440]: https://github.com/rust-random/getrandom/pull/440
+[#442]: https://github.com/rust-random/getrandom/pull/442
+[#448]: https://github.com/rust-random/getrandom/pull/448
 [#490]: https://github.com/rust-random/getrandom/pull/490
 [#499]: https://github.com/rust-random/getrandom/pull/499
+[#504]: https://github.com/rust-random/getrandom/pull/504
+[#507]: https://github.com/rust-random/getrandom/pull/507
+[#512]: https://github.com/rust-random/getrandom/pull/512
+[#521]: https://github.com/rust-random/getrandom/pull/521
+[#522]: https://github.com/rust-random/getrandom/pull/522
+[#532]: https://github.com/rust-random/getrandom/pull/532
+[#542]: https://github.com/rust-random/getrandom/pull/542
+[#544]: https://github.com/rust-random/getrandom/pull/544
+[#554]: https://github.com/rust-random/getrandom/pull/554
+[#555]: https://github.com/rust-random/getrandom/pull/555
+[#557]: https://github.com/rust-random/getrandom/pull/557
+[#571]: https://github.com/rust-random/getrandom/pull/571
 
 ## [0.2.15] - 2024-05-06
 ### Added
